@@ -8,7 +8,7 @@ const Alexa = require('alexa-sdk');
 // Global Data
 //=========================================================================================================================================
 
-const APP_ID = 'amzn1.ask.skill.f3656c04-186d-4ba6-b62f-294c2f1a9db8';
+const APP_ID = 'amzn1.ask.skill.9d440756-c773-4d0a-926e-bcba3d0a78aa';
 
 const SKILL_NAME = 'Find me';
 const HELP_MESSAGE = 'You can say... fuck, ask the dev what to say'; // TODO
@@ -26,48 +26,87 @@ var handlers = {
 
     // if new user
     if (Object.keys(this.attributes).length === 0) {
-      this.attributes.numberCorrect = 0;
-      this.attributes.currentFlashcardIndex = 0;
+      this.attributes.currentItemToStore = null;
+      this.attributes.storedItems = {};
 
       this.response
-        .speak('Welcome to the state capitals quiz. ' + AskQuestion(this.attributes))
-        .listen(AskQuestion(this.attributes));
+        .speak('Thanks for using FindMe, I\'m excited to help you keep track of your stuff! ' +
+              'What would you like to store?')
+        .listen('What would you like to store?');
     }
+    // returning user
     else {
-      var currentIndex = this.attributes.currentFlashcardIndex || 0;
-      var numberCorrect = this.attributes.numberCorrect || 0;
+      this.attributes.currentItemToStore = null;
+
       this.response
-        .speak('Welcome back to the state capitals quiz. You are on question ' + currentIndex + 
-              ' and have answered ' + numberCorrect + ' correctly. ' +
-              'The next question is... ' + AskQuestion(this.attributes))
-        .listen('i\'ve been listening... ');
+        .speak('Welcome back, do you need help finding or storing something?')
+        .listen('Would you like to store or find something?');
     }
+
     this.emit(':saveState', true);
     this.emit(':responseReady');
   },
 
-  // User gives an answer
-  'AnswerIntent': function() {
-    var currentFlashcardIndex = this.attributes['currentFlashcardIndex'];
-    var currentState = statesAndCaptials[currentFlashcardIndex].state;
-    var userAnswer = this.event.request.intent.slots.answer.value || 'suck';
-    var correctAnswer = statesAndCaptials[currentFlashcardIndex].capital || 'suck';
+  // User says they want to store something
+  'StoreIntent': function() {
+    var itemToStore = this.event.request.intent.slots.possession.value;
+    this.attributes.currentItemToStore = itemToStore;
 
-    // user is correct
-    if (userAnswer === correctAnswer) {
-      this.attributes.currentFlashcardIndex++;
-      this.attributes.numberCorrect++;
-      this.response
-        .speak("Great Job! Next question... " + AskQuestion(this.attributes))
-        .listen(AskQuestion(this.attributes));
+     //TODO if user says "store something" in response to the launch dialog elicit the item
+
+     // 1. confirm the item
+        // TODO? maybe handled in console
+     // 2. prompt the user for the location of that item
+    this.response
+      .speak('Where did you put ' + itemToStore + ' ?')
+      .listen('Where did you put ' + itemToStore + ' ?');
+
+    this.emit(':saveState', true);
+    this.emit(':responseReady');
+  },
+
+  // User says where they are storing it
+  'GiveLocationIntent': function() {
+    var itemLocation = this.event.request.intent.slots.description.value;
+    var itemToStore = 0; // TODO fill in from previous invocation
+
+    // 1. make sure the user has already requested to store an item
+    if (this.attributes.currentItemToStore !== null) {
+      // 2. confirm their location description
+      // 3. assign the location to the item and store it in the database
+      // 4. clear the current item being stored from data
     }
-    //user is wrong
     else {
-      this.attributes.currentFlashcardIndex++;
+      // this has to be accidental if they got here, ask for the item
       this.response
-        .speak("Ohhh, sorry, the capital of " + currentState + " is " + correctAnswer +
-          '. The next question is... ' + AskQuestion(this.attributes)) 
-        .listen(AskQuestion(this.attributes));
+            .speak('What are you trying to store?')
+            .listen('What are you trying to store?');
+    }
+
+    this.emit(':saveState', true);
+    this.emit(':responseReady');
+  },
+
+  // User asks where they put something
+  'LocateIntent': function() {
+    var itemToLocate = this.event.request.intent.slots.possession.value;
+
+    //TODO if user says "find something" in response to the launch dialog elicit the item
+
+    // 1. check for item in dictionary
+    var itemLocation = this.attributes.storedItems[itemToLocate];
+    if (itemLocation) {
+      // if found, return and ask if they want to clear the information from storage
+      this.response
+        .speak('Your ' + itemToLocate + ' is ' + itemLocation + ' . Would you like to keep it there or remove it from my memory?')
+        .listen('Would you like to remove the location of your ' + itemToLocate + ' from my memory?');
+    }
+    else {
+      // if NOT found, ask if they meant something else
+      // TODO see if the word they input is close to something stored, or output a random stored item and see if they meant that
+      this.response
+        .speak('I\'m sorry, I couldn\'t find your ' + itemToLocate + ' . Did you mean something else?')
+        .listen('Would you like me to try to find something else?');
     }
 
     this.emit(':saveState', true);
@@ -94,13 +133,6 @@ var handlers = {
     this.emit(':saveState', true);
   }
 
-};
-
-var AskQuestion = function(attributes) {
-    var currentFlashcardIndex = attributes.currentFlashcardIndex;
-    var currentState = statesAndCaptials[currentFlashcardIndex].state;
-
-    return ('What is the capital of ' + currentState + '?');
 };
 
 exports.handler = function(event, context, callback){
